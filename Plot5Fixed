@@ -1,0 +1,80 @@
+using ITensors, ITensorMPS, Plots 
+
+function heisenberg_mpo(N; J=1.0, S="S=1/2", h=0.01) #added small edge field to first and last sites to break symmetry to view nonzero magnetization profile 
+  sites = siteinds(S, N; conserve_qns=false)
+  os = OpSum()
+  for i in 1:N-1
+    os += 0.5J, "S+", i, "S-", i+1
+    os += 0.5J, "S-", i, "S+", i+1
+    os += J, "Sz", i, "Sz", i+1
+  end 
+  os += h, "Sz", 1
+  os += -h, "Sz", N
+  return MPO(os, sites), sites 
+end 
+
+function initialize_state(sites, nup) #state has fixed Sz
+  N = length(sites)
+  return [i <= nup? "Up" : "Dn" for i in 1:N] 
+end 
+
+#separate dmrgs for g.s. and e.s. 
+
+function run_dmrg_ground(H, psi0; maxdim=100, nsweeps=10)
+  sweeps = Sweeps(nsweeps)
+  setmaxdim!(sweeps, maxdim)
+  setcutoff!(sweeps, 1e-10)
+  setnoise!(sweeps, 1e-10)
+  E_gs, psi_gs = dmrg(H, psi0, sweeps; outputlevel=0) #what does output level entail?
+  return E_gs, psi_gs 
+end 
+
+function run_dmrg_excited(H, psi_gs, psi1; maxdim=100, nsweeps=10, weight=20) #added weights to ensure orthogonality 
+  sweeps = Sweeps(nsweeps)
+  setmaxdim!(sweeps, maxdim)
+  setcutoff!(sweeps, 1e-10)
+  setnoise!(sweeps, 1e-10)
+  E_ex, psi_ex = dmrg(H, [psi_gs], psi1, sweeps; outputlevel = 0, weight=weight) #outputlevel = 0 ensures clean terminal 
+  return E_ex, psi_ex 
+end 
+  
+function magnetizationo_profile(psi, sites)
+  return [real(expect(psi, "Sz"; sites=sites, site_range=i)[1]) for i in 1:length(sites)]
+  end 
+
+  function plot_magnetization_profile(L=20; J=1.0, maxdim=100, h=0.01)
+    H, sites = heisenberg_mpo(L; J=J, h=h)
+
+    psi0_gs = MPS(sites, initialize_state(sites, div(L,2)))
+    sweeps = Sweeps(10)
+    setmaxdim!(sweeps, maxdim)
+    setcutoff!(sweeps, 1e-10)
+    setnoise!(sweeps,1e-10)
+
+    E_gs, psi_gs = dmrg(H, psi0_gs, sweeps; outputlevel=0)
+
+    #1st excited state 
+    psi1 = randomMPS(sites, linkdims=2) #max bond dimension of 2
+    E_ex, psi_ex = dmrg(H, [psi_gs], psi1, sweeps; outputlevel=0, weight=20)
+
+    magnetization_gs = magnetization_profile(psi_gs, sites)
+    magnetization_ex = magnetization_profile(psi_ex, sites)
+
+    plt = plot(1:L, magnetization_gs, label = "Ground State", xlabel = "Site", ylabel = "<Sz>", title = "Magnetization Profile: Ground vs Excited state", marker =:o)
+    plot!(plt, 1:L, magnetization_ex, label="First Excited State", marker=:square)
+    display(plt)
+
+    #print diagnostics 
+    println("Ground state energy is $E_gs)
+    println("First excited state energy is $E_ex)
+    println("Sum of <Sz> ground state is $(sum(magnetization_gs))")
+    println("Sum of <Sz> of first excited state is $(sum(magnetization_ex))")
+end 
+
+plot magnetization_profile()
+    
+  
+
+
+
+  
