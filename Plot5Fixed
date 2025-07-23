@@ -15,7 +15,7 @@ end
 
 function initialize_state(sites, nup) #state has fixed Sz
   N = length(sites)
-  return [i <= nup? "Up" : "Dn" for i in 1:N] 
+  return [i <= nup ? "Up" : "Dn" for i in 1:N] 
 end 
 
 #separate dmrgs for g.s. and e.s. 
@@ -29,16 +29,7 @@ function run_dmrg_ground(H, psi0; maxdim=100, nsweeps=10)
   return E_gs, psi_gs 
 end 
 
-function run_dmrg_excited(H, psi_gs, psi1; maxdim=100, nsweeps=10, weight=20) #added weights to ensure orthogonality 
-  sweeps = Sweeps(nsweeps)
-  setmaxdim!(sweeps, maxdim)
-  setcutoff!(sweeps, 1e-10)
-  setnoise!(sweeps, 1e-10)
-  E_ex, psi_ex = dmrg(H, [psi_gs], psi1, sweeps; outputlevel = 0, weight=weight) #outputlevel = 0 ensures clean terminal 
-  return E_ex, psi_ex 
-end 
-  
-function magnetizationo_profile(psi, sites)
+function magnetization_profile(psi, sites)
   return [real(expect(psi, "Sz"; sites=sites, site_range=i)[1]) for i in 1:length(sites)]
   end 
 
@@ -65,16 +56,10 @@ function magnetizationo_profile(psi, sites)
     display(plt)
 
     #print diagnostics 
-    println("Ground state energy is $E_gs)
-    println("First excited state energy is $E_ex)
+    println("Ground state energy is $E_gs")
+    println("First excited state energy is $E_ex")
     println("Sum of <Sz> ground state is $(sum(magnetization_gs))")
     println("Sum of <Sz> of first excited state is $(sum(magnetization_ex))")
 end 
 
-plot magnetization_profile()
-    
-  
-
-
-
-  
+plot_magnetization_profile()
