@@ -1,0 +1,66 @@
+using ITensors, ITensorMPS, Plots
+
+function mixed_sites(N_spin1) #number of spin-1 sites 
+  N_total = N_spin1 + 2 
+  sites = Vector{Index}(undef, N_total)
+  sites[1] = siteind("S=1/2", conserve_qns=false) #ask about conserving qns 
+  for i in 2:N_total-1
+    sites[i] = siteind("S=1", conserve_qns=false)
+  end
+  sites[N_total] = siteind("S=1/2", conserve_qns=false)
+  return sites
+end 
+
+function initial_state(sites; pattern=:up) #all up, down, or neel state/alternating 
+  return [pattern == :up ? "Up" : 
+          pattern == :dn ? "Dn" : 
+          isodd(i) ? "Up" : "Dn"
+          for (i, _) in enumerate(sites)]
+end 
+
+function modified_heisenberg_mpo(sites; J=1.0, h=0.01) #adds edge field h? ask US
+  N = length(sites)
+  os = OpSum()
+  for i in 1:N-1
+    os += 0.5J, "S+", i, "S-", i+1
+    os += 0.5J, "S-", i, "S+", i+1
+    os += J, "Sz", i, "Sz", i+1
+  end 
+  os += h, "Sz", 1
+  os += h, "Sz", N
+  return MPO(os, sites)
+end 
+
+function magnetization_profile(psi, sites)
+  return [real(expect(psi, "Sz"; site_range=i)[1]) for i in 1:length(sites)]
+end 
+
+function plot_magnetization_profile(N_spin1=18, J=1.0, maxdim=100)
+  sites = mixed_sites(N_spin1)
+  H = modified_heisenberg_mpo(sites; J=J, h=0.2) #is this value of h "good"/even needed?
+  state_init = initial_state(sites; pattern=:alt)
+  
+  psi0 = productMPS(sites, state_init) #why product MPS here? 
+  sweeps = Sweeps(10)
+  setmaxdim!(sweeps, maxdim)
+  setcutoff!(sweeps, 1e-10)
+  setnoise!(sweeps, 1e-10)
+  E_gs, psi_gs = dmrg(H, psi0, sweeps; outputlevel =0)
+
+  psi1 = randomMPS(sites, linkdims=10) #why randomMPS here and why link dims? 
+  E_ex, psi_ex = dmrg(H, [psi_gs], psi1, sweeps; outputlevel=0, weight=20.0)
+
+  magnetization_gs = magnetization_profile(psi_gs, sites)
+  magnetization_ex = magnetization_profile(psi_ex, sites)
+
+  plt = plot(1:length(sites), magnetization_gs, label = "Ground State", xlabel = "Site", ylabel = "<Sz>", title = "Magnetization Profile of Mixed Spin Chain Ground vs First Excited", marker =:o)
+  plot!(plt, 1:length(sites), magnetization_ex, label="First Excited State", marker=:square)
+  display(plt)
+
+  println("Ground state energy: $E+gs")
+  println("First excited state energy: $E_ex")
+  println("Sum of <Sz> (ground) = $(sum(magnetization_gs))")
+  println("Sum of <Sz> (excited) = $(sum(magnetization_ex))")
+end 
+
+plot_magnetization_profile()
