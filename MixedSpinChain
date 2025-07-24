@@ -18,6 +18,8 @@ function initial_state(sites; pattern=:up) #all up, down, or neel state/alternat
           for (i, _) in enumerate(sites)]
 end 
 
+#print pattern 
+
 function modified_heisenberg_mpo(sites; J=1.0, h=0.01) #adds edge field h? ask US
   N = length(sites)
   os = OpSum()
@@ -39,6 +41,8 @@ function plot_magnetization_profile(N_spin1=18, J=1.0, maxdim=100)
   sites = mixed_sites(N_spin1)
   H = modified_heisenberg_mpo(sites; J=J, h=0.2) #is this value of h "good"/even needed?
   state_init = initial_state(sites; pattern=:alt)
+
+#print pattern 
   
   psi0 = productMPS(sites, state_init) #why product MPS here? 
   sweeps = Sweeps(10)
@@ -47,7 +51,7 @@ function plot_magnetization_profile(N_spin1=18, J=1.0, maxdim=100)
   setnoise!(sweeps, 1e-10)
   E_gs, psi_gs = dmrg(H, psi0, sweeps; outputlevel =0)
 
-  psi1 = randomMPS(sites, linkdims=10) #why randomMPS here and why link dims? 
+  psi1 = randomMPS(sites, linkdims=10) #why randomMPS here and why link dims? ---> danger: initialize state that happens to be same as ground initial state
   E_ex, psi_ex = dmrg(H, [psi_gs], psi1, sweeps; outputlevel=0, weight=20.0)
 
   magnetization_gs = magnetization_profile(psi_gs, sites)
